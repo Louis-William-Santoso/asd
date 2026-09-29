@@ -1,5 +1,5 @@
 const API_CONFIG = {
-  baseUrl: "http://localhost:5000",
+  baseUrl: "",
   endpoints: {
     login: "/api/login",
     fireStatus: "/api/fire/status",

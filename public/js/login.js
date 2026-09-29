@@ -1,5 +1,5 @@
 $(function(){
-if(localStorage.getItem("iot_token")){location.href="dashboard.html";return;}
+if(localStorage.getItem("iot_token")){location.href="/dashboard";return;}
 $("#loginForm").on("submit",function(e){
 e.preventDefault();
 const $b=$("#loginButton"),$m=$("#loginMessage");
@@ -13,7 +13,7 @@ if(!r.token){$m.addClass("error").text("Token tidak ditemukan.");return;}
 localStorage.setItem("iot_token",r.token);
 if(r.user)localStorage.setItem("iot_user",JSON.stringify(r.user));
 $m.addClass("success").text("Login berhasil.");
-setTimeout(()=>location.href="/dashboard.html",300);
+setTimeout(()=>location.href="/dashboard",300);
 },
 error:function(xhr){$m.addClass("error").text((xhr.responseJSON&&xhr.responseJSON.message)||"Login gagal.");},
 complete:function(){$b.prop("disabled",false).text("Login");}
