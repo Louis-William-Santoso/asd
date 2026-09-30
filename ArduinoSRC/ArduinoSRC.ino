@@ -16,7 +16,8 @@ PubSubClient client(espClient);
 void setup() {
   Serial.begin(115200);
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) { delay(500); }
+  unsigned long t = millis();
+  while (WiFi.status() != WL_CONNECTED && millis()-t < 15000) delay(500);
 
   pinMode(buzzer, OUTPUT);
   pinMode(analGas, INPUT);
@@ -26,7 +27,11 @@ void setup() {
 }
 
 void loop() {
-  //reconect wifi func
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.begin(ssid, password);   // atau WiFi.reconnect()
+    delay(1000);
+    return;
+  }
   reconectWifi();
 
   int inputAnalGas = analogRead(analGas);

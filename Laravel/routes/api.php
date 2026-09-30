@@ -1,11 +1,4 @@
 <?php
 
-use App\Http\Controllers\AuthController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-Route::post('/login', [AuthController::class, 'login']);
+// The dashboard reads InfluxDB through web.php with a session cookie; there is
+// no public API to authenticate against yet.

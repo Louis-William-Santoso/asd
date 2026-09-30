@@ -2,32 +2,59 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function show()
+    {
+        return view('index');
+    }
+
     public function login(Request $request)
     {
-	$request->validate([
-	  'username' => 'required',
-	  'password' => 'required',
+        $credentials = $request->validate([
+            'username' => ['required', 'string'],
+            'password' => ['required', 'string'],
         ]);
 
-	$user = User::where('name', $request->username)->first();
+        // The users table has no username column; the seeder's admin is a "name".
+        $throttleKey = Str::transliterate(Str::lower($credentials['username']).'|'.$request->ip());
 
-	if (!$user || !Hash::check($request->password, $user->password)) {
-	    return response()->json([
-		'success' => false,
-		'message' => 'Username atau password salah'
-	    ], 401);
-	}
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            throw ValidationException::withMessages([
+                'username' => 'Terlalu banyak percobaan. Coba lagi dalam '.RateLimiter::availableIn($throttleKey).' detik.',
+            ]);
+        }
 
-	return response()->json([
-	    'success' => true,
-	    'message' => 'Login berhasil',
-	    'token' => 'fireguard-token'
-	]);
+        if (! Auth::attempt(['name' => $credentials['username'], 'password' => $credentials['password']], $request->boolean('remember'))) {
+            RateLimiter::hit($throttleKey, 60);
+
+            throw ValidationException::withMessages([
+                'username' => 'Username atau password salah',
+            ]);
+        }
+
+        RateLimiter::clear($throttleKey);
+        $request->session()->regenerate();
+
+        if ($request->expectsJson()) {
+            return response()->json(['redirect' => route('dashboard')]);
+        }
+
+        return redirect()->intended(route('dashboard'));
+    }
+
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login');
     }
 }

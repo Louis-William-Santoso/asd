@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'mqtt' => [
+        'host' => env('MQTT_HOST', '127.0.0.1'),
+        'port' => (int) env('MQTT_PORT', 1883),
+        'topic' => env('MQTT_TOPIC', 'cloud/esp32/sensor_data'),
+        'client_id' => env('MQTT_CLIENT_ID', 'fireguard-server'),
+    ],
+
 ];

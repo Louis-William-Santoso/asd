@@ -4,7 +4,7 @@
             "name": "esp32:esp32:esp32doit-devkit-v1",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/tmp/vs-arduino-sketch-t0KoRf/ArduinoSRC",
+                "/tmp/vs-arduino-sketch-Z1ByX1/ArduinoSRC",
                 "/mnt/d/software_random/.arduino15/packages/esp32/tools/esp32-libs/3.3.12/dio_qspi/include",
                 "/mnt/d/software_random/.arduino15/packages/esp32/hardware/esp32/3.3.12/cores/esp32",
                 "/mnt/d/software_random/.arduino15/packages/esp32/hardware/esp32/3.3.12/variants/doitESP32devkitV1",

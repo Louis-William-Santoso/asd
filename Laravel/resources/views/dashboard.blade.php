@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>FireGuard IoT - Dashboard</title>
 <link rel="stylesheet" href="{{ asset('css/style.css') }}">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -15,7 +16,7 @@
 <div><h1>🔥 FireGuard IoT</h1><span class="topbar-subtitle">Fire Detection & Monitoring System</span></div>
 <div class="topbar-right">
 <span id="connectionBadge" class="badge badge-offline">● Disconnected</span>
-<span id="userLabel" class="user-label">User</span>
+<span class="user-label">{{ auth()->user()->name }}</span>
 <button id="logoutButton" class="logout-btn">Logout</button>
 </div>
 </header>
@@ -24,23 +25,23 @@
 <section id="mainStatus" class="main-status safe">
 <div>
 <div class="status-kicker">STATUS SISTEM</div>
-<h2 id="mainStatusTitle">AMAN</h2>
-<p id="mainStatusText">Tidak ada indikasi kebakaran.</p>
+<h2 id="mainStatusTitle">MENUNGGU DATA</h2>
+<p id="mainStatusText">Belum ada pembacaan sensor dari Raspberry Pi.</p>
 <span id="lastUpdate" class="last-update">Last update: -</span>
 </div>
 <div id="statusIcon" class="status-icon">🛡️</div>
 </section>
 
 <section class="stats-grid">
-<article class="stat-card"><span class="stat-label">Suhu</span><strong><span id="temperature">-</span> °C</strong><span id="temperatureStatus" class="status-text neutral">Menunggu data</span></article>
-<article class="stat-card"><span class="stat-label">Asap</span><strong><span id="smoke">-</span> ppm</strong><span id="smokeStatus" class="status-text neutral">Menunggu data</span></article>
-<article class="stat-card"><span class="stat-label">Sensor Api</span><strong id="flame">-</strong><span id="flameStatus" class="status-text neutral">Menunggu data</span></article>
-<article class="stat-card"><span class="stat-label">Alarm</span><strong id="alarm">-</strong><span id="alarmStatus" class="status-text neutral">Menunggu data</span></article>
+<article class="stat-card"><span class="stat-label">Intensitas Gas</span><strong><span id="gasIntensity">-</span> <small>ADC</small></strong><span id="gasStatus" class="status-text neutral">Menunggu data</span></article>
+<article class="stat-card"><span class="stat-label">Porsi ADC</span><strong><span id="gasPercent">-</span> %</strong><span class="status-text neutral">skala 0&ndash;<span id="adcMax">4095</span></span></article>
+<article class="stat-card"><span class="stat-label">Status ESP32</span><strong id="statusValue">-</strong><span id="statusNote" class="status-text neutral">Menunggu data</span></article>
+<article class="stat-card"><span class="stat-label">Uptime Sensor</span><strong id="uptime">-</strong><span class="status-text neutral">lama menyala</span></article>
 </section>
 
 <section class="panel chart-panel">
 <div class="panel-header">
-<div><h2>📈 Grafik Suhu & Asap</h2><p class="panel-subtitle">Data historis dari backend/Grafana</p></div>
+<div><h2>📈 Grafik Intensitas Gas</h2><p class="panel-subtitle">Pembacaan terakhir dari InfluxDB, garis merah = batas alarm ESP32</p></div>
 <span id="chartRangeLabel" class="small-label">0 data</span>
 </div>
 <div class="chart-wrap"><canvas id="sensorChart"></canvas></div>
@@ -48,37 +49,20 @@
 
 <section class="content-grid">
 <article class="panel">
-<div class="panel-header"><div><h2>🚨 Status Alarm</h2><p class="panel-subtitle">Status aktuator dan alarm</p></div></div>
+<div class="panel-header"><div><h2>🚨 Status Alarm</h2><p class="panel-subtitle">Alarm dijalankan langsung oleh ESP32</p></div></div>
 <div class="alarm-summary">
-<div class="alarm-big-icon">🔕</div>
+<div class="alarm-big-icon" id="alarmIcon">🔕</div>
 <div><strong id="alarmSummaryTitle">Alarm Tidak Aktif</strong><span id="alarmSummaryText">Sistem dalam keadaan siaga.</span></div>
 </div>
-<div class="actuator-row"><div><strong>Buzzer</strong><span>Alarm suara</span></div><span id="buzzer" class="actuator-badge off">OFF</span></div>
-<div class="actuator-row"><div><strong>Lampu Peringatan</strong><span>Indikator visual</span></div><span id="warningLight" class="actuator-badge off">OFF</span></div>
-<div class="actuator-row"><div><strong>Pompa / Sprinkler</strong><span>Aktuator pemadam</span></div><span id="pump" class="actuator-badge off">OFF</span></div>
+<div class="actuator-row"><div><strong>Buzzer</strong><span>Dinyalakan ESP32 saat gas &gt; 2000</span></div><span id="buzzer" class="actuator-badge off">OFF</span></div>
+<div class="actuator-row"><div><strong>Lampu Peringatan</strong><span>Tidak terpasang di board</span></div><span class="actuator-badge off">N/A</span></div>
+<div class="actuator-row"><div><strong>Pompa / Sprinkler</strong><span>Tidak terpasang di board</span></div><span class="actuator-badge off">N/A</span></div>
 </article>
 
 <article class="panel">
-<div class="panel-header"><div><h2>📋 Log Kejadian</h2><p class="panel-subtitle">Riwayat event dari sistem</p></div><span id="logCount" class="small-label">0 event</span></div>
+<div class="panel-header"><div><h2>📋 Log Kejadian</h2><p class="panel-subtitle">Perubahan status dalam jendela data aktif</p></div><span id="logCount" class="small-label">0 event</span></div>
 <div id="eventLog" class="event-log"><div class="empty-state">Belum ada event.</div></div>
 </article>
-</section>
-
-<section class="panel threshold-panel">
-<div class="panel-header"><div><h2>⚙️ Form Setting Threshold</h2><p class="panel-subtitle">Batas warning dan bahaya untuk suhu dan asap.</p></div></div>
-<form id="thresholdForm" class="threshold-form">
-<div class="threshold-group">
-<h3>Suhu</h3>
-<label for="tempWarning">Warning (°C)</label><input id="tempWarning" type="number" min="0" step="0.1" required>
-<label for="tempDanger">Danger (°C)</label><input id="tempDanger" type="number" min="0" step="0.1" required>
-</div>
-<div class="threshold-group">
-<h3>Asap</h3>
-<label for="smokeWarning">Warning (ppm)</label><input id="smokeWarning" type="number" min="0" required>
-<label for="smokeDanger">Danger (ppm)</label><input id="smokeDanger" type="number" min="0" required>
-</div>
-<div class="threshold-actions"><button id="saveThresholdButton" type="submit" class="primary-btn">Simpan Threshold</button><span id="thresholdMessage" class="message"></span></div>
-</form>
 </section>
 </main>
 </body>
