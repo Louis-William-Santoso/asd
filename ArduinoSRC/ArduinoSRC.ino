@@ -10,81 +10,89 @@ const int buzzer = 16;
 const int analGas = 34;
 const int digiGas = 27;
 
+const unsigned long SENSE_INTERVAL = 2500; // ms
+const unsigned long NET_INTERVAL  = 5000;  // ms
+const unsigned long PUB_INTERVAL  = 5000;  // ms
+const int GAS_THRESHOLD = 1870;
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+// Nilai sensor terakhir: sensing tetap jalan walau WiFi mati,
+// nilainya dipakai blok publish begitu koneksi kembali.
+static int inputAnalGas = 0;
+static int inputDigiGas = 0;
+static const char* status = "good";
+
 void setup() {
   Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  unsigned long t = millis();
-  while (WiFi.status() != WL_CONNECTED && millis()-t < 15000) delay(500);
+  Serial.println("Boot: mulai");
 
   pinMode(buzzer, OUTPUT);
   pinMode(analGas, INPUT);
   pinMode(digiGas, INPUT);
 
   client.setServer(mqtt_server, 1883);
+
+  // Tidak ada tunggu blocking di sini: begitu Serial.begin selesai,
+  // loop() langsung sensing, WiFi connect Paralel di background.
+  WiFi.begin(ssid, password);
+  delay(50);
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.begin(ssid, password);   // atau WiFi.reconnect()
-    delay(1000);
-    return;
-  }
-  reconectWifi();
+  // 1. Sensing: tanpa syarat WiFi, selalu jalan
+  static unsigned long lastSense = 0;
+  if (millis() - lastSense >= SENSE_INTERVAL) {
+    lastSense = millis();
 
-  int inputAnalGas = analogRead(analGas);
-  int inputDigiGas = digitalRead(digiGas);
+    inputAnalGas = analogRead(analGas);
+    inputDigiGas = digitalRead(digiGas);
 
-  Serial.print("Anal Gas:"); Serial.println(inputAnalGas);
-  Serial.print("Digi Gas:"); Serial.println(inputDigiGas);
-  delay(2500);
+    Serial.print("Anal Gas:"); Serial.println(inputAnalGas);
+    Serial.print("Digi Gas:"); Serial.println(inputDigiGas);
 
-  char* status = "";
-  if(inputAnalGas > 2000){
-    digitalWrite(buzzer,HIGH);
-    delay(1500);
-    digitalWrite(buzzer,LOW);
-    status = "bad";
-  } else {
-    status = "good";
+    if (inputAnalGas > GAS_THRESHOLD) {
+      status = "bad";
+      digitalWrite(buzzer, HIGH);
+      delay(1500);
+      digitalWrite(buzzer, LOW);
+    } else {
+      status = "good";
+    }
   }
 
-  // Kirim data JSON setiap 5 detik
+  // 2. Jaringan: reconnect non-blocking, sensor tetap terbaca di atas
+  static unsigned long lastNet = 0;
+  if (millis() - lastNet >= NET_INTERVAL) {
+    lastNet = millis();
+    if (WiFi.status() != WL_CONNECTED) {
+      WiFi.reconnect();
+    } else if (!client.connected()) {
+      if (client.connect("ESP32_JSON_Client")) {
+        Serial.println("Connected to MQTT");
+      }
+    } else {
+      client.loop();
+    }
+  }
+
+  // 3. Publish JSON hanya kalau MQTT benar-benar terhubung
   static unsigned long lastMsg = 0;
-  if (millis() - lastMsg > 5000) {
+  if (client.connected() && millis() - lastMsg >= PUB_INTERVAL) {
     lastMsg = millis();
 
-    // 1. Buat Dokumen JSON
     JsonDocument doc;
-    
-    // 2. Isi Data/Kunci JSON
     doc["gas_intencity"] = inputAnalGas;
     doc["status"] = status;
     doc["uptime"] = millis() / 1000;
 
-    // 3. Konversi JSON ke bentuk String/Buffer
     char buffer[256];
     serializeJson(doc, buffer);
 
-    // 4. Publish ke MQTT Topic
     client.publish("esp32/sensor_data", buffer);
-    
+
     Serial.print("Sent JSON: ");
     Serial.println(buffer);
   }
-}
-
-void reconectWifi(){
-  if (!client.connected()) {
-    // Reconnect logic
-    if (client.connect("ESP32_JSON_Client")) {
-      Serial.println("Connected to MQTT");
-    } else {
-      delay(2000);
-      return;
-    }
-  }
-  client.loop();
 }
